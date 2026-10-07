@@ -3,6 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as events from 'aws-cdk-lib/aws-events';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -47,8 +48,18 @@ export class PaymentsStack extends cdk.Stack {
     });
 
     // Least Privilege sobre la tabla y sobre el bus de eventos
+    // (lectura para validar el estado de la factura antes de pagar)
+    props.invoicesTable.grantReadData(registerPaymentLambda);
     props.invoicesTable.grantWriteData(registerPaymentLambda);
     props.eventBus.grantPutEventsTo(registerPaymentLambda);
+
+    // grantWriteData() no incluye esta acción, necesaria para TransactWriteCommand
+    registerPaymentLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['dynamodb:TransactWriteItems'],
+        resources: [props.invoicesTable.tableArn],
+      }),
+    );
 
     // POST /invoices/{id}/payment
     const invoicesResource = props.api.root.getResource('invoices');
