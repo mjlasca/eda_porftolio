@@ -18,5 +18,15 @@ export class DatabaseStack extends cdk.Stack {
       // DESTROY elimina la tabla si haces cdk destroy. En producción usarías RETAIN.
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
+
+    // GSI de listado: agrupa todas las facturas en una sola partición y las
+    // ordena por fecha. Permite hacer Query paginado en GET /invoices
+    // en lugar de Scan (que recorre toda la tabla).
+    this.invoicesTable.addGlobalSecondaryIndex({
+      indexName: 'gsi1',
+      partitionKey: { name: 'gsi1pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'gsi1sk', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
   }
 }

@@ -34,6 +34,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const newInvoice: Invoice = {
       pk: `INVOICE#${invoiceId}`,
       sk: `METADATA#${invoiceId}`,
+      gsi1pk: 'INVOICE',
+      gsi1sk: `${now}#${invoiceId}`,
       invoiceId,
       customerId,
       number,
