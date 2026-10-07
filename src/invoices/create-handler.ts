@@ -1,7 +1,8 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { Invoice, InvoiceStatus } from '../shared/types/invoice.js';
+import type { Invoice, InvoiceStatus } from '../shared/types/invoices.js';
+import { publishEvent } from '../shared/events.js';
 
 // Inicializamos el cliente de DynamoDB fuera del handler (Cold Start Optimization)
 const client = new DynamoDBClient({});
@@ -49,6 +50,26 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         ConditionExpression: 'attribute_not_exists(pk)', // Evita sobrescribir facturas existentes
       })
     );
+
+    // Emitimos el evento de dominio una vez persistida la factura.
+    // Best-effort: si EventBridge falla, la factura ya existe y devolvemos 201
+    // (se deja trazado el error para reintentar/notificar).
+    try {
+      await publishEvent({
+        source: 'billing.invoices',
+        detailType: 'InvoiceCreated',
+        detail: {
+          invoiceId: newInvoice.invoiceId,
+          customerId: newInvoice.customerId,
+          number: newInvoice.number,
+          amount: newInvoice.amount,
+          status: newInvoice.status,
+          createdAt: newInvoice.createdAt,
+        },
+      });
+    } catch (eventError) {
+      console.error('No se pudo publicar el evento InvoiceCreated:', eventError);
+    }
 
     return {
       statusCode: 201,
